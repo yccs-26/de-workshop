@@ -101,3 +101,87 @@ RUN uv sync --locked
 - **재현성(Reproducibility)** : 1년 뒤에 다시 빌드해도 똑같은 환경 보장
 - 속도 : uv >> pip (병렬 설치 & 캐싱 능력)
 - `--locked`를 통해 배포 환경이 로컬 개발 환경과 완전히 일치
+
+## Docker에서 Postgres 사용
+서로 다른 application에서 특정 버전의 postgreSQL 필요? -> Docker 사용
+
+```bash
+docker run -it --rm \
+  -e POSTGRES_USER="root" \
+  -e POSTGRES_PASSWORD="root" \
+  -e POSTGRES_DB="ny_taxi" \
+  -v ny_taxi_postgres_data:/var/lib/postgresql \
+  -p 5432:5432 \
+  postgres:18
+```
+- `-e` : 환경 변수 설정
+- `-v` : named volume 생성
+    - docker가 volume 자동으로 관리
+    - 컨테이너 삭제돼도 데이터는 유지
+    - volume은 docker의 내부 저장소에 저장
+
+### volume이란?
+container는 기본적으로 쓰고 버리는 속성이 있다. container를 삭제하면 그 안의 데이터도 함께 삭제된다. 이를 방지하기 위해 데이터만 따로 뽑아내서 별도의 공간에 저장하는 것을 volume이라고 한다. 
+- 1개의 volume은 여러 container가 동시에 연결해서 데이터 공유할 수 있다.
+- container 자체 writable layer에 쓰는 것보다 host 전용 공간인 volume에 쓰는 게 속도가 훨씬 빠르다.
+- container 업데이트, 삭제 후 재생성을 해도 volume에 연결만 하면 이전 데이터 그대로 사용할 수 있다.
+
+
+### bind mount란?
+named volume만큼 자주 쓰이는 방식으로 host에 이미 존재하는 특정 폴더를 container 내부와 실시간으로 동기화하는 방식이다.
+
+- Named Volume은 docker가 관리하는 비밀 공간에 저장되지만, Bind Mount는 내가 경로를 직접 지정한다. 
+- 호스트에서 파일 수정하면 컨테이너 안에 즉시 반영되고, 그 역도 마찬가지이다.
+
+**구분점 :**
+docker option - host(외부):container(내부)
+ex) `-p 8080:80` : 내 컴퓨터에서 접속할 포트 번호 = 8080, container 내부에서 돌아가는 포트 번호 = 80
+
+```python
+uv add --dev pgcli
+```
+- `--dev` : 설치할 패키지를 개발용으로만 사용
+- `pgcli` : PostgreSQL 전용 터미널 클라이언트
+Postgres DB 접속하면 기본형은 `psql`인데 편리함을 주는 패지키
+- 자동 완성 기능
+- 구문 강조
+- 데이터 조회 시 표 형식 출력
+
+`--dev` 사용하는 이유
+- 서비스 배포할 때는 사용하지 않고, 내가 개발할 때만 사용할 것이기 때문에
+
+** Jupyter 사용
+```bash
+source .venv/bin/activate
+```
+```python
+uv add --dev jupyter
+
+uv run jupyter notebook
+```
+localhost:8888 접속해서 jupyter 떴으면 CLI에 나와있는 token 값을 입력칸에 기입한다.
+
+**SQLAlchemy** 
+python에서 SQL DB를 다루기 위한 SQL Toolkit이자 ORM(object relational mapper)
+- 추상화 : 파이썬 코드로 여러 종류의 DB 접속 가능
+- ORM 기능 : DB 테이블을 파이썬의 class처럼 다룰 수 있다
+- 보안 : SQL Injection 예방
+
+`from sqlalchemy import create_engine`
+- SQLAlchemy에서 DB로 가는 통로(Engine)를 만드는 첫 번째 단계
+- 연결만 하는 것이 아니라 내부적으로 connection pool을 관리
+  - 매번 연결을 새로 하는 것이 아니라 미리 몇 개 열어두고 재사용해 성능 향상
+
+```python
+df_iter = pd.read_csv(
+    url,
+    dtype=dtype,
+    parse_dates=parse_dates,
+    iterator=True,
+    chunksize=100000,
+)
+```
+대용량 데이터를 처리할 때는 chunk 처리 기법을 사용한다.
+- `iterator=True` : 데이터를 한 번에 다 읽지 않고, 필요할 때마다 조금씩 꺼내올 수 있는 읽기 전용 도구 생성
+- `chunksize=100000` : 10만 행씩 쪼개겠다.
+- `dtype`, `parse_dates` : 데이터 타입 지정, 날짜 형식 변환
