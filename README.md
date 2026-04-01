@@ -185,3 +185,4 @@ df_iter = pd.read_csv(
 - `iterator=True` : 데이터를 한 번에 다 읽지 않고, 필요할 때마다 조금씩 꺼내올 수 있는 읽기 전용 도구 생성
 - `chunksize=100000` : 10만 행씩 쪼개겠다.
 - `dtype`, `parse_dates` : 데이터 타입 지정, 날짜 형식 변환
+
